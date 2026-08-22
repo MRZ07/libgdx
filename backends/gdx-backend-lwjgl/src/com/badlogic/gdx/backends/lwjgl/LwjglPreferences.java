@@ -177,26 +177,29 @@ public class LwjglPreferences implements Preferences {
 
 	@Override
 	public void flush () {
-		OutputStream out = null;
 		try {
-			out = new BufferedOutputStream(file.write(false));
-			properties.storeToXML(out, null);
+			writeToDisk();
 		} catch (Exception ex) {
 			throw new GdxRuntimeException("Error writing preferences: " + file, ex);
-		} finally {
-			StreamUtils.closeQuietly(out);
 		}
 	}
 
 	@Override
 	public void save (PreferencesSaveCallback saveCallback) {
+		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
+		try {
+			writeToDisk();
+			saveCallback.onSuccess();
+		} catch (Throwable t) {
+			saveCallback.onFailure(PreferencesSaveResult.from(t), t);
+		}
+	}
+
+	private void writeToDisk () throws Exception {
 		OutputStream out = null;
 		try {
 			out = new BufferedOutputStream(file.write(false));
 			properties.storeToXML(out, null);
-			saveCallback.onSuccess();
-		} catch (Throwable t) {
-			saveCallback.onFailure(PreferencesSaveResult.from(t), t);
 		} finally {
 			StreamUtils.closeQuietly(out);
 		}
