@@ -20,6 +20,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.badlogic.gdx.Preferences;
+import com.badlogic.gdx.PreferencesSaveCallback;
+import com.badlogic.gdx.PreferencesSaveResult;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.ObjectMap;
 
@@ -81,6 +83,17 @@ public class GwtPreferences implements Preferences {
 			} catch (Exception e) {
 				throw new GdxRuntimeException("Couldn't flush preferences", e);
 			}
+		}
+	}
+
+	@Override
+	public void save (PreferencesSaveCallback saveCallback) {
+		try {
+			flush();
+			saveCallback.onSuccess();
+		} catch (Throwable t) {
+			// e.g. a quota exceeded error when Local Storage is full; no finer classification available.
+			saveCallback.onFailure(PreferencesSaveResult.IO_ERROR, t);
 		}
 	}
 

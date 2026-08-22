@@ -18,6 +18,8 @@ package com.badlogic.gdx.backends.headless;
 
 import com.badlogic.gdx.Files.FileType;
 import com.badlogic.gdx.Preferences;
+import com.badlogic.gdx.PreferencesSaveCallback;
+import com.badlogic.gdx.PreferencesSaveResult;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.StreamUtils;
@@ -179,6 +181,20 @@ public class HeadlessPreferences implements Preferences {
 			properties.storeToXML(out, null);
 		} catch (Exception ex) {
 			throw new GdxRuntimeException("Error writing preferences: " + file, ex);
+		} finally {
+			StreamUtils.closeQuietly(out);
+		}
+	}
+
+	@Override
+	public void save (PreferencesSaveCallback saveCallback) {
+		OutputStream out = null;
+		try {
+			out = new BufferedOutputStream(file.write(false));
+			properties.storeToXML(out, null);
+			saveCallback.onSuccess();
+		} catch (Throwable t) {
+			saveCallback.onFailure(PreferencesSaveResult.from(t), t);
 		} finally {
 			StreamUtils.closeQuietly(out);
 		}

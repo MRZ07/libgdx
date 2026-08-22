@@ -29,6 +29,8 @@ import org.robovm.apple.foundation.NSString;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
+import com.badlogic.gdx.PreferencesSaveCallback;
+import com.badlogic.gdx.PreferencesSaveResult;
 
 public class IOSPreferences implements Preferences {
 	NSMutableDictionary<NSString, NSObject> nsDictionary;
@@ -190,5 +192,17 @@ public class IOSPreferences implements Preferences {
 			Gdx.app.error("IOSPreferences", "Failed to write NSDictionary atomically to " + file);
 		}
 		pool.close();
+	}
+
+	@Override
+	public void save (PreferencesSaveCallback saveCallback) {
+		// writeToFile:atomically: only reports success/failure, no failure reason.
+		NSAutoreleasePool pool = new NSAutoreleasePool();
+		boolean success = nsDictionary.write(file, false);
+		pool.close();
+		if (success)
+			saveCallback.onSuccess();
+		else
+			saveCallback.onFailure(PreferencesSaveResult.IO_ERROR, null);
 	}
 }

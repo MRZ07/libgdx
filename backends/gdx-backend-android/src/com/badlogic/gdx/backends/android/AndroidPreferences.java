@@ -23,6 +23,8 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 
 import com.badlogic.gdx.Preferences;
+import com.badlogic.gdx.PreferencesSaveCallback;
+import com.badlogic.gdx.PreferencesSaveResult;
 
 public class AndroidPreferences implements Preferences {
 	SharedPreferences sharedPrefs;
@@ -151,6 +153,18 @@ public class AndroidPreferences implements Preferences {
 		if (editor != null) {
 			editor.apply();
 			editor = null;
+		}
+	}
+
+	@Override
+	public void save (PreferencesSaveCallback saveCallback) {
+		// commit() is synchronous and reports whether the write persisted; it does not report a failure reason.
+		if (editor == null || editor.commit()) {
+			editor = null;
+			saveCallback.onSuccess();
+		} else {
+			editor = null;
+			saveCallback.onFailure(PreferencesSaveResult.IO_ERROR, null);
 		}
 	}
 

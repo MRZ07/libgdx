@@ -81,4 +81,20 @@ public interface Preferences {
 
 	/** Makes sure the preferences are persisted. */
 	public void flush ();
+
+	/** Persists the preferences and reports whether the write actually reached permanent storage.
+	 * <p>
+	 * Unlike {@link #flush()}, this reports failures instead of dropping them silently or throwing, depending on the backend. The
+	 * callback is invoked exactly once, synchronously on the calling thread. Backends map their native results onto
+	 * {@link PreferencesSaveResult} on a best-effort basis, see {@link PreferencesSaveResult} for the documented mapping.
+	 * </p>
+	 * @param saveCallback invoked once with the outcome of the persist operation */
+	default public void save (PreferencesSaveCallback saveCallback) {
+		try {
+			flush();
+			saveCallback.onSuccess();
+		} catch (Throwable t) {
+			saveCallback.onFailure(PreferencesSaveResult.from(t), t);
+		}
+	}
 }
