@@ -21,6 +21,8 @@ import java.util.Map;
 
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.utils.GdxRuntimeException;
+
+import java.util.Locale;
 import com.badlogic.gdx.utils.ObjectMap;
 
 public class GwtPreferences implements Preferences {
@@ -82,6 +84,30 @@ public class GwtPreferences implements Preferences {
 				throw new GdxRuntimeException("Couldn't flush preferences", e);
 			}
 		}
+	}
+
+	@Override
+	public void save (PreferencesSaveCallback saveCallback) {
+		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
+		try {
+			flush();
+			saveCallback.onSuccess();
+		} catch (Throwable t) {
+			// Browsers report a full Local Storage as QuotaExceededError. JS error names are identifiers, not localized
+			// messages, so matching on the name is stable across browsers and languages.
+			saveCallback.onFailure(isQuotaExceeded(t) ? PreferencesSaveResult.DISK_FULL : PreferencesSaveResult.IO_ERROR, t);
+		}
+	}
+
+	private static boolean isQuotaExceeded (Throwable t) {
+		while (t != null && t.getCause() != t) {
+			String name = t.getClass().getName();
+			if (name.toLowerCase(Locale.ROOT).contains("quotaexceedederror")) return true;
+			String message = t.getMessage();
+			if (message != null && message.toLowerCase(Locale.ROOT).contains("quotaexceedederror")) return true;
+			t = t.getCause();
+		}
+		return false;
 	}
 
 	@Override

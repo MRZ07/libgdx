@@ -27,6 +27,8 @@ import com.badlogic.gdx.utils.StreamUtils;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.Files;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
@@ -189,18 +191,29 @@ public class HeadlessPreferences implements Preferences {
 			writeToDisk();
 			saveCallback.onSuccess();
 		} catch (Throwable t) {
-			saveCallback.onFailure(PreferencesSaveResult.from(t), t);
+			saveCallback.onFailure(classify(t), t);
 		}
 	}
 
+	/** Writes through {@code java.nio.file} so the JVM's error code translation is preserved as exception types, instead of being
+	 * flattened into message-carrying {@code java.io} exceptions. */
 	private void writeToDisk () throws Exception {
 		OutputStream out = null;
 		try {
-			out = new BufferedOutputStream(file.write(false));
+			file.parent().mkdirs();
+			out = new BufferedOutputStream(Files.newOutputStream(file.file().toPath()));
 			properties.storeToXML(out, null);
 		} finally {
 			StreamUtils.closeQuietly(out);
 		}
+	}
+
+	private static PreferencesSaveResult classify (Throwable t) {
+		while (t != null && t.getCause() != t) {
+			if (t instanceof AccessDeniedException || t instanceof SecurityException) return PreferencesSaveResult.ACCESS_DENIED;
+			t = t.getCause();
+		}
+		return PreferencesSaveResult.IO_ERROR;
 	}
 
 	@Override

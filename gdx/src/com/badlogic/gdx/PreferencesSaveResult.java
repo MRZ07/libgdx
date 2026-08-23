@@ -17,22 +17,25 @@
 package com.badlogic.gdx;
 
 import java.io.IOException;
-import java.util.Locale;
 
 /** The outcome of a verified preferences persist through {@link Preferences#save(PreferencesSaveCallback)}.
  * <p>
  * Backends map their native results onto this enum on a best-effort basis because not every backend reports detailed failure
- * reasons. The documented mapping is:
+ * reasons. Classification relies on exception types and other non-localized identifiers only, never on OS-provided error
+ * messages. The documented mapping is:
  * </p>
  * <ul>
  * <li>Android: {@code SharedPreferences.Editor#commit()} only returns a boolean, so failures are reported as
  * {@link #IO_ERROR}.</li>
- * <li>LWJGL3/LWJGL/Headless: exceptions are classified via {@link #from(Throwable)}.</li>
+ * <li>LWJGL3/LWJGL/Headless: writes go through {@code java.nio.file}, whose exception subtypes carry the OS error;
+ * {@code AccessDeniedException} maps to {@link #ACCESS_DENIED}, everything else to {@link #IO_ERROR}.</li>
  * <li>iOS: {@code NSDictionary#writeToFile:atomically:} only returns a boolean, so failures are reported as
  * {@link #IO_ERROR}.</li>
- * <li>GWT: Local Storage failures are classified from the thrown error; quota errors map to {@link #DISK_FULL}.</li>
+ * <li>GWT: Local Storage quota errors ({@code QuotaExceededError}) map to {@link #DISK_FULL}, everything else to
+ * {@link #IO_ERROR}. There is no structured disk-full signal on the desktop JVMs, so desktop backends never produce
+ * {@link #DISK_FULL}.</li>
  * </ul>
- * {@link #UNKNOWN} makes an undetectable failure reason explicit instead of hiding it behind a more specific value. */
+ */
 public enum PreferencesSaveResult {
 	/** The preferences were persisted. */
 	SUCCESS,
@@ -45,58 +48,21 @@ public enum PreferencesSaveResult {
 	/** The backend did not report a failure reason. */
 	UNKNOWN;
 
-	// Lowercase substrings matched against exception messages. Best effort by nature: operating systems and browsers localize or
-	// word these differently, unmatched messages degrade to IO_ERROR/UNKNOWN rather than misreporting.
-	private static final String[] ACCESS_DENIED_MESSAGES = {"permission denied", "access denied", "access is denied"};
-	private static final String[] DISK_FULL_MESSAGES = {"no space left on device", "not enough space", "disk is full",
-		"quotaexceedederror", "quota exceeded"};
-
-	/** Best-effort classification of an exception thrown while persisting. Walks the exception cause chain, because backends
-	 * commonly wrap the originating I/O exception, and returns the most specific classification found.
+	/** Best-effort classification of an exception thrown while persisting, walking the exception cause chain because backends
+	 * commonly wrap the originating I/O exception.
 	 *
-	 * A bare {@link java.io.FileNotFoundException} is <em>not</em> reported as {@link #ACCESS_DENIED}: it is thrown for many
-	 * reasons besides denied access, e.g. a missing parent directory. Only explicit permission evidence (a
-	 * {@code java.nio.file.AccessDeniedException}, a {@code SecurityException}, or a permission-related message) yields
-	 * {@link #ACCESS_DENIED}.
+	 * This base implementation uses only exception types available on all platforms including GWT. Backends with richer native
+	 * information classify locally before invoking the callback.
 	 *
 	 * @param t the exception to classify, may be null
-	 * @return the most specific result found; {@link #IO_ERROR} if any {@link IOException} was found without a more specific
-	 *         cause; {@link #UNKNOWN} otherwise */
+	 * @return {@link #ACCESS_DENIED} for a {@link SecurityException}, {@link #IO_ERROR} for any other {@link IOException},
+	 *         {@link #UNKNOWN} otherwise */
 	public static PreferencesSaveResult from (Throwable t) {
-		boolean ioError = false;
 		while (t != null && t.getCause() != t) {
-			PreferencesSaveResult specific = classify(t);
-			if (specific != null) return specific;
-			if (t instanceof IOException) ioError = true;
+			if (t instanceof SecurityException) return ACCESS_DENIED;
+			if (t instanceof IOException) return IO_ERROR;
 			t = t.getCause();
 		}
-		return ioError ? IO_ERROR : UNKNOWN;
-	}
-
-	/** Classifies a single exception level, or returns null if this level alone is not decisive. */
-	private static PreferencesSaveResult classify (Throwable t) {
-		if (t instanceof SecurityException || isNamedAccessDeniedException(t)) return ACCESS_DENIED;
-		String message = t.getMessage();
-		if (message == null) return null;
-		String lower = message.toLowerCase(Locale.ROOT);
-		if (containsAny(lower, ACCESS_DENIED_MESSAGES)) return ACCESS_DENIED;
-		if (containsAny(lower, DISK_FULL_MESSAGES)) return DISK_FULL;
-		return null;
-	}
-
-	/** Detects {@code java.nio.file.AccessDeniedException} by its fully qualified name while walking the class hierarchy. The name
-	 * check instead of {@code instanceof} keeps this class GWT-compatible, where {@code java.nio.file} is not emulated. */
-	private static boolean isNamedAccessDeniedException (Throwable t) {
-		for (Class<?> c = t.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-			if ("java.nio.file.AccessDeniedException".equals(c.getName())) return true;
-		}
-		return false;
-	}
-
-	private static boolean containsAny (String message, String[] candidates) {
-		for (String candidate : candidates) {
-			if (message.contains(candidate)) return true;
-		}
-		return false;
+		return UNKNOWN;
 	}
 }

@@ -5,11 +5,11 @@ import static org.junit.Assert.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.AccessDeniedException;
 
 import org.junit.Test;
 
-/** Tests the best-effort failure classification used by {@link Preferences#save(PreferencesSaveCallback)}. */
+/** Tests the base failure classification used by {@link Preferences#save(PreferencesSaveCallback)}. It is intentionally limited
+ * to exception types available on all platforms including GWT; backends with richer native information classify locally. */
 public class PreferencesSaveResultTest {
 
 	@Test
@@ -28,62 +28,29 @@ public class PreferencesSaveResultTest {
 	}
 
 	@Test
-	public void nioAccessDeniedExceptionIsAccessDenied () {
-		assertEquals(PreferencesSaveResult.ACCESS_DENIED, PreferencesSaveResult.from(new AccessDeniedException("/prefs/x.xml")));
+	public void ioExceptionIsIoError () {
+		assertEquals(PreferencesSaveResult.IO_ERROR, PreferencesSaveResult.from(new IOException("kaboom")));
 	}
 
-	/** {@link FileNotFoundException} is thrown for many non-access reasons (missing parent directory, ...), so without explicit
-	 * permission evidence it must degrade to IO_ERROR. */
+	/** {@link FileNotFoundException} is thrown for many reasons besides denied access (missing parent directory, ...), so it must
+	 * degrade to IO_ERROR at the core level. Backends that can identify the OS error code upgrade it locally. */
 	@Test
-	public void bareFileNotFoundIsNotAccessDenied () {
+	public void fileNotFoundIsIoError () {
 		assertEquals(PreferencesSaveResult.IO_ERROR,
 			PreferencesSaveResult.from(new FileNotFoundException("/prefs/missing/parent/prefs.xml")));
 	}
 
+	/** Backends wrap I/O exceptions (e.g. FileHandle and GdxRuntimeException), so classification must walk the cause chain. */
 	@Test
-	public void fileNotFoundWithPermissionMessageIsAccessDenied () {
-		assertEquals(PreferencesSaveResult.ACCESS_DENIED,
-			PreferencesSaveResult.from(new FileNotFoundException("/prefs/p.xml (Permission denied)")));
-	}
-
-	@Test
-	public void windowsAccessDeniedMessageIsDetected () {
-		assertEquals(PreferencesSaveResult.ACCESS_DENIED,
-			PreferencesSaveResult.from(new IOException("/prefs/p.xml (Access is denied)")));
-	}
-
-	@Test
-	public void posixDiskFullMessageIsDiskFull () {
-		assertEquals(PreferencesSaveResult.DISK_FULL,
-			PreferencesSaveResult.from(new IOException("/prefs/p.xml (No space left on device)")));
-	}
-
-	@Test
-	public void windowsDiskFullMessageIsDiskFull () {
-		assertEquals(PreferencesSaveResult.DISK_FULL,
-			PreferencesSaveResult.from(new IOException("There is not enough space on the disk")));
-	}
-
-	@Test
-	public void quotaExceededErrorIsDiskFull () {
-		// GWT surfaces localStorage quota errors as JavaScriptException-like messages carrying the JS error name.
-		assertEquals(PreferencesSaveResult.DISK_FULL,
-			PreferencesSaveResult.from(new RuntimeException("(QuotaExceededError): The quota has been exceeded")));
-	}
-
-	/** Backends wrap I/O exceptions (e.g. FileHandle.write wraps in GdxRuntimeException), so classification must walk the cause
-	 * chain and prefer the most specific finding over a generic wrapper level. */
-	@Test
-	public void causeChainIsWalkedAndMostSpecificWins () {
-		RuntimeException wrapped = new RuntimeException("Error writing preferences", new AccessDeniedException("/prefs/p.xml"));
-		assertEquals(PreferencesSaveResult.ACCESS_DENIED, PreferencesSaveResult.from(wrapped));
-
-		RuntimeException wrappedDiskFull = new RuntimeException("Error writing preferences",
-			new IOException("/prefs/p.xml (No space left on device)"));
-		assertEquals(PreferencesSaveResult.DISK_FULL, PreferencesSaveResult.from(wrappedDiskFull));
+	public void causeChainIsWalked () {
+		RuntimeException wrappedSecurity = new RuntimeException("Error writing preferences", new SecurityException("denied"));
+		assertEquals(PreferencesSaveResult.ACCESS_DENIED, PreferencesSaveResult.from(wrappedSecurity));
 
 		RuntimeException wrappedIo = new RuntimeException("Error writing preferences", new IOException("kaboom"));
 		assertEquals(PreferencesSaveResult.IO_ERROR, PreferencesSaveResult.from(wrappedIo));
+
+		RuntimeException wrappedPlain = new RuntimeException("Error writing preferences", new RuntimeException("boom"));
+		assertEquals(PreferencesSaveResult.UNKNOWN, PreferencesSaveResult.from(wrappedPlain));
 	}
 
 	@Test
