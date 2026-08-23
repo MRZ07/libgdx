@@ -20,6 +20,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.badlogic.gdx.Preferences;
+import com.badlogic.gdx.PreferencesSaveCallback;
+import com.badlogic.gdx.PreferencesSaveResult;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 
 import java.util.Locale;
