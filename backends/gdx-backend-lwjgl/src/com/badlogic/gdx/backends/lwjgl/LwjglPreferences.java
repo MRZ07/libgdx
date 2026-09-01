@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.badlogic.gdx.Files.FileType;
 import com.badlogic.gdx.Preferences;
@@ -40,6 +42,9 @@ public class LwjglPreferences implements Preferences {
 	private final String name;
 	private final Properties properties = new Properties();
 	private final FileHandle file;
+
+	// Shared thread pool for async writes across all LWJGL Preferences instances.
+	private static final ExecutorService SAVE_EXECUTOR = Executors.newCachedThreadPool();
 
 	public LwjglPreferences (String name, String directory) {
 		this(new LwjglFileHandle(new File(directory, name), FileType.External));
@@ -195,6 +200,12 @@ public class LwjglPreferences implements Preferences {
 		} catch (Throwable t) {
 			saveCallback.onFailure(classify(t), t);
 		}
+	}
+
+	@Override
+	public void saveAsync (PreferencesSaveCallback saveCallback) {
+		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
+		SAVE_EXECUTOR.submit( () -> save(saveCallback));
 	}
 
 	/** Writes through {@code java.nio.file} so the JVM's error code translation is preserved as exception types, instead of being

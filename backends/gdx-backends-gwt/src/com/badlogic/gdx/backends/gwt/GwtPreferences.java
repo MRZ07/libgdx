@@ -26,6 +26,7 @@ import com.badlogic.gdx.utils.GdxRuntimeException;
 
 import java.util.Locale;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.google.gwt.user.client.Timer;
 
 public class GwtPreferences implements Preferences {
 	final String prefix;
@@ -99,6 +100,20 @@ public class GwtPreferences implements Preferences {
 			// messages, so matching on the name is stable across browsers and languages.
 			saveCallback.onFailure(isQuotaExceeded(t) ? PreferencesSaveResult.DISK_FULL : PreferencesSaveResult.IO_ERROR, t);
 		}
+	}
+
+	@Override
+	public void saveAsync (PreferencesSaveCallback saveCallback) {
+		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
+		// In GWT/JavaScript we can't truly run on a background thread (single-threaded).
+		// Yield to the event loop via Timer to keep the API consistent; the write still runs
+		// synchronously on the main thread but the callback is deferred.
+		new Timer() {
+			@Override
+			public void run () {
+				save(saveCallback);
+			}
+		}.schedule(0);
 	}
 
 	private static boolean isQuotaExceeded (Throwable t) {

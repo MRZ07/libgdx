@@ -35,10 +35,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class HeadlessPreferences implements Preferences {
 	private final Properties properties = new Properties();
 	private final FileHandle file;
+
+	// Shared thread pool for async writes across all Headless Preferences instances.
+	private static final ExecutorService SAVE_EXECUTOR = Executors.newCachedThreadPool();
 
 	public HeadlessPreferences (String name, String directory) {
 		this(new HeadlessFileHandle(new File(directory, name), FileType.External));
@@ -193,6 +198,12 @@ public class HeadlessPreferences implements Preferences {
 		} catch (Throwable t) {
 			saveCallback.onFailure(classify(t), t);
 		}
+	}
+
+	@Override
+	public void saveAsync (PreferencesSaveCallback saveCallback) {
+		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
+		SAVE_EXECUTOR.submit( () -> save(saveCallback));
 	}
 
 	/** Writes through {@code java.nio.file} so the JVM's error code translation is preserved as exception types, instead of being
