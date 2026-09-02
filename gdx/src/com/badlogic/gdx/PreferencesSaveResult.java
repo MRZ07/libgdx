@@ -18,7 +18,7 @@ package com.badlogic.gdx;
 
 import java.io.IOException;
 
-/** The outcome of a verified preferences persist through {@link Preferences#save(PreferencesSaveCallback)}.
+/** The outcome of a verified preferences persist through {@link Preferences#flush(PreferencesSaveCallback)}.
  * <p>
  * Backends map their native results onto this enum on a best-effort basis because not every backend reports detailed failure
  * reasons. Classification relies on exception types and other non-localized identifiers only, never on OS-provided error

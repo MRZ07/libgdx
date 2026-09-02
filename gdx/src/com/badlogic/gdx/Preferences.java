@@ -82,15 +82,18 @@ public interface Preferences {
 	/** Makes sure the preferences are persisted. */
 	public void flush ();
 
-	/** Persists the preferences and reports whether the write actually reached permanent storage.
+	/** Asynchronously persists the preferences and reports the outcome through the callback.
 	 * <p>
-	 * Unlike {@link #flush()}, this reports failures instead of dropping them silently or throwing, depending on the backend. The
-	 * callback is invoked exactly once, synchronously on the calling thread; this API does not add any thread safety of its own.
-	 * Exceptions thrown by the callback propagate to the caller. Backends map their native results onto
-	 * {@link PreferencesSaveResult} on a best-effort basis, see {@link PreferencesSaveResult} for the documented mapping.
+	 * Backends dispatch the write to a background thread and invoke the callback after the write completes. This method does not
+	 * add any thread safety; callers must finish preference mutations before invoking it.
 	 * </p>
-	 * @param saveCallback invoked once with the outcome of the persist operation */
-	default public void save (PreferencesSaveCallback saveCallback) {
+	 * <p>
+	 * The default implementation performs the write synchronously. This fallback keeps custom {@code Preferences} implementations
+	 * source compatible; platform backends should override it with asynchronous execution. Callback exceptions propagate to the
+	 * caller for the default implementation and on the callback thread for asynchronous implementations.
+	 * </p>
+	 * @param saveCallback invoked once with the outcome of the persist operation; must not be null */
+	default public void flush (final PreferencesSaveCallback saveCallback) {
 		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
 		try {
 			flush();
@@ -98,21 +101,5 @@ public interface Preferences {
 		} catch (Throwable t) {
 			saveCallback.onFailure(PreferencesSaveResult.from(t), t);
 		}
-	}
-
-	/** Asynchronously persists the preferences and reports the outcome through the callback.
-	 * <p>
-	 * The write is dispatched to a background thread and the callback is invoked on that background thread when complete. This
-	 * does not block the calling thread. Backends may override this with platform-appropriate threading (e.g., Android handler
-	 * thread, desktop thread pool, iOS background queue).
-	 * </p>
-	 * <p>
-	 * The default implementation submits the synchronous {@link #save(PreferencesSaveCallback)} to a new thread. Backends should
-	 * override with platform-appropriate threading.
-	 * </p>
-	 * @param saveCallback invoked once with the outcome of the persist operation; must not be null */
-	default public void saveAsync (PreferencesSaveCallback saveCallback) {
-		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
-		new Thread( () -> save(saveCallback)).start();
 	}
 }

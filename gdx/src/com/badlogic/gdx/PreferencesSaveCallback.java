@@ -16,8 +16,8 @@
 
 package com.badlogic.gdx;
 
-/** Notified exactly once with the outcome of {@link Preferences#save(PreferencesSaveCallback)}. Callbacks are invoked
- * synchronously on the calling thread. */
+/** Notified exactly once with the outcome of {@link Preferences#flush(PreferencesSaveCallback)}. Asynchronous backend
+ * implementations invoke callbacks on their background thread. */
 public interface PreferencesSaveCallback {
 	/** The preferences were persisted. */
 	void onSuccess ();

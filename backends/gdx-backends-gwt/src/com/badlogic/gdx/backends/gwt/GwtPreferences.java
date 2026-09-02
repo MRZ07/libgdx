@@ -90,28 +90,19 @@ public class GwtPreferences implements Preferences {
 	}
 
 	@Override
-	public void save (PreferencesSaveCallback saveCallback) {
+	public void flush (final PreferencesSaveCallback saveCallback) {
 		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
-		try {
-			flush();
-			saveCallback.onSuccess();
-		} catch (Throwable t) {
-			// Browsers report a full Local Storage as QuotaExceededError. JS error names are identifiers, not localized
-			// messages, so matching on the name is stable across browsers and languages.
-			saveCallback.onFailure(isQuotaExceeded(t) ? PreferencesSaveResult.DISK_FULL : PreferencesSaveResult.IO_ERROR, t);
-		}
-	}
-
-	@Override
-	public void saveAsync (PreferencesSaveCallback saveCallback) {
-		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
-		// In GWT/JavaScript we can't truly run on a background thread (single-threaded).
-		// Yield to the event loop via Timer to keep the API consistent; the write still runs
-		// synchronously on the main thread but the callback is deferred.
+		// GWT is single-threaded, so defer the write to the next event-loop turn.
 		new Timer() {
 			@Override
 			public void run () {
-				save(saveCallback);
+				try {
+					flush();
+					saveCallback.onSuccess();
+				} catch (Throwable t) {
+					// The browser error name is stable across locales and identifies a storage quota failure.
+					saveCallback.onFailure(isQuotaExceeded(t) ? PreferencesSaveResult.DISK_FULL : PreferencesSaveResult.IO_ERROR, t);
+				}
 			}
 		}.schedule(0);
 	}

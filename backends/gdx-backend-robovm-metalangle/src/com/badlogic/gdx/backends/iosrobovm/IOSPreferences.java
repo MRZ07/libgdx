@@ -6,6 +6,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import org.robovm.apple.dispatch.DispatchQueue;
 import org.robovm.apple.foundation.NSAutoreleasePool;
 import org.robovm.apple.foundation.NSMutableDictionary;
 import org.robovm.apple.foundation.NSNumber;
@@ -182,14 +183,16 @@ public class IOSPreferences implements Preferences {
 	}
 
 	@Override
-	public void save (PreferencesSaveCallback saveCallback) {
-		// writeToFile:atomically: only reports success/failure, no failure reason.
-		NSAutoreleasePool pool = new NSAutoreleasePool();
-		boolean success = nsDictionary.write(file, false);
-		pool.close();
-		if (success)
-			saveCallback.onSuccess();
-		else
-			saveCallback.onFailure(PreferencesSaveResult.IO_ERROR, null);
+	public void flush (PreferencesSaveCallback saveCallback) {
+		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
+		DispatchQueue.getGlobalQueue(DispatchQueue.PRIORITY_DEFAULT, 0).async( () -> {
+			NSAutoreleasePool pool = new NSAutoreleasePool();
+			boolean success = nsDictionary.write(file, false);
+			pool.close();
+			if (success)
+				saveCallback.onSuccess();
+			else
+				saveCallback.onFailure(PreferencesSaveResult.IO_ERROR, null);
+		});
 	}
 }

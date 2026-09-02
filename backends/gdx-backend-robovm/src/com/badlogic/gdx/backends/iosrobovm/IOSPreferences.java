@@ -196,19 +196,7 @@ public class IOSPreferences implements Preferences {
 	}
 
 	@Override
-	public void save (PreferencesSaveCallback saveCallback) {
-		// writeToFile:atomically: only reports success/failure, no failure reason.
-		NSAutoreleasePool pool = new NSAutoreleasePool();
-		boolean success = nsDictionary.write(file, false);
-		pool.close();
-		if (success)
-			saveCallback.onSuccess();
-		else
-			saveCallback.onFailure(PreferencesSaveResult.IO_ERROR, null);
-	}
-
-	@Override
-	public void saveAsync (PreferencesSaveCallback saveCallback) {
+	public void flush (PreferencesSaveCallback saveCallback) {
 		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
 		DispatchQueue.getGlobalQueue(DispatchQueue.PRIORITY_DEFAULT, 0).async( () -> {
 			NSAutoreleasePool pool = new NSAutoreleasePool();

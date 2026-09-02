@@ -8,7 +8,7 @@ import java.io.IOException;
 
 import org.junit.Test;
 
-/** Tests the base failure classification used by {@link Preferences#save(PreferencesSaveCallback)}. It is intentionally limited
+/** Tests the base failure classification used by {@link Preferences#flush(PreferencesSaveCallback)}. It is intentionally limited
  * to exception types available on all platforms including GWT; backends with richer native information classify locally. */
 public class PreferencesSaveResultTest {
 

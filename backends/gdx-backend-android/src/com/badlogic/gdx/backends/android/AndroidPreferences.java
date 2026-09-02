@@ -21,8 +21,6 @@ import java.util.Map.Entry;
 
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
-import android.os.Handler;
-import android.os.HandlerThread;
 
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.PreferencesSaveCallback;
@@ -31,13 +29,6 @@ import com.badlogic.gdx.PreferencesSaveResult;
 public class AndroidPreferences implements Preferences {
 	SharedPreferences sharedPrefs;
 	Editor editor;
-
-	// Single background thread for async writes, reused across all saveAsync calls.
-	private static final HandlerThread SAVE_THREAD = new HandlerThread("AndroidPreferences-Save");
-	static {
-		SAVE_THREAD.start();
-	}
-	private static final Handler SAVE_HANDLER = new Handler(SAVE_THREAD.getLooper());
 
 	public AndroidPreferences (SharedPreferences preferences) {
 		this.sharedPrefs = preferences;
@@ -166,21 +157,9 @@ public class AndroidPreferences implements Preferences {
 	}
 
 	@Override
-	public void save (PreferencesSaveCallback saveCallback) {
-		// commit() is synchronous and reports whether the write persisted; it does not report a failure reason.
-		if (editor == null || editor.commit()) {
-			editor = null;
-			saveCallback.onSuccess();
-		} else {
-			editor = null;
-			saveCallback.onFailure(PreferencesSaveResult.IO_ERROR, null);
-		}
-	}
-
-	@Override
-	public void saveAsync (PreferencesSaveCallback saveCallback) {
+	public void flush (PreferencesSaveCallback saveCallback) {
 		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
-		SAVE_HANDLER.post( () -> {
+		Thread thread = new Thread( () -> {
 			// Use commit() on the background thread for a real result; apply() gives no completion signal.
 			if (editor == null || editor.commit()) {
 				editor = null;
@@ -189,7 +168,9 @@ public class AndroidPreferences implements Preferences {
 				editor = null;
 				saveCallback.onFailure(PreferencesSaveResult.IO_ERROR, null);
 			}
-		});
+		}, "AndroidPreferences-Flush");
+		thread.setDaemon(true);
+		thread.start();
 	}
 
 	@Override

@@ -27,8 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import com.badlogic.gdx.Files.FileType;
 import com.badlogic.gdx.Preferences;
@@ -41,9 +39,6 @@ import com.badlogic.gdx.utils.StreamUtils;
 public class Lwjgl3Preferences implements Preferences {
 	private final Properties properties = new Properties();
 	private final FileHandle file;
-
-	// Shared thread pool for async writes across all LWJGL3 Preferences instances.
-	private static final ExecutorService SAVE_EXECUTOR = Executors.newCachedThreadPool();
 
 	public Lwjgl3Preferences (String name, String directory) {
 		this(new Lwjgl3FileHandle(new File(directory, name), FileType.External));
@@ -190,20 +185,18 @@ public class Lwjgl3Preferences implements Preferences {
 	}
 
 	@Override
-	public void save (PreferencesSaveCallback saveCallback) {
+	public void flush (PreferencesSaveCallback saveCallback) {
 		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
-		try {
-			writeToDisk();
-			saveCallback.onSuccess();
-		} catch (Throwable t) {
-			saveCallback.onFailure(classify(t), t);
-		}
-	}
-
-	@Override
-	public void saveAsync (PreferencesSaveCallback saveCallback) {
-		if (saveCallback == null) throw new IllegalArgumentException("saveCallback must not be null");
-		SAVE_EXECUTOR.submit( () -> save(saveCallback));
+		Thread thread = new Thread( () -> {
+			try {
+				writeToDisk();
+				saveCallback.onSuccess();
+			} catch (Throwable t) {
+				saveCallback.onFailure(classify(t), t);
+			}
+		}, "Lwjgl3Preferences-Flush");
+		thread.setDaemon(true);
+		thread.start();
 	}
 
 	/** Writes through {@code java.nio.file} so the JVM's error code translation is preserved as exception types, instead of being
